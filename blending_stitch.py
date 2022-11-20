@@ -1,15 +1,14 @@
 
 import cv2 as cv
 import numpy as np
-import scipy.io as sio
-import time, gc, sys
+# import scipy.io as sio
+# import time, gc, sys
 from matplotlib import pyplot as plt
 from skimage import img_as_ubyte
 
-
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib import cm
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
+# from mpl_toolkits.mplot3d import Axes3D
+# from matplotlib import cm
+# from matplotlib.ticker import LinearLocator, FormatStrFormatter
 
 def printRandom3DSample(Arr, numElts=(5, 2, 3)):
     # A is a 3d-array
@@ -337,18 +336,16 @@ def make_data_3D(x_range, y_range, step):
 if __name__=="__main__":
 
     # setting the id of the dataset to process
-    idx = 0
+    idx = 1
     m_param = [
         {
         'label': 'Labs',
-        # 'dir':"/media/sf_Data/poisson_editing_stitching/images/tk_img",
         'dir':"data/Labs",
         'num_frames': 4,
         'scale_factor': 0.5
         },
         {
         'label': 'Airplanes',
-        # 'dir':"/media/sf_Data/data_stitching/Airplanes/m_result/1_res_param_all_C04_D95_S01/tk_img",
         'dir':"data/Airplanes",
         'num_frames': 5,
         'scale_factor': 0.2
