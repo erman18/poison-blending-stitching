@@ -6,11 +6,6 @@ from img_utils import resizeImg
 
 def computeGrad(img):
     # Compute gradient of the two images.
-    ##** Manual gradient 'Forward'
-    # out_x[:,0:-1,:] = img[:,1:,:].astype('double') - img[:,0:-1,:].astype('double')
-    # out_y[0:-1,:,:] = img[1:,:,:].astype('double') - img[0:-1,:,:].astype('double')
-    
-    ##** Manual gradient 'Centered'
     out_x = np.zeros(img.shape, np.double)
     out_y = np.zeros(img.shape, np.double)
     out_x[:,1:-1,:] = 0.5*(img[:,2:,:].astype('double') - img[:,0:-2,:].astype('double'))
