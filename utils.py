@@ -3,6 +3,37 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
+import os
+import re
+
+# Read files in a folder.
+def readFiles(folder_path, filter="mask"):
+    # Get all files in the folder.
+    files = os.listdir(folder_path)
+    
+    # Get the file paths.
+    file_paths = [os.path.join(folder_path, file) for file in files if re.match(rf"^{filter}.*\.png$", file, re.I)]
+    
+    # Sort the file paths.
+    file_paths.sort()
+    print(f"Found {len(file_paths)} files in {folder_path}")
+    print(file_paths)
+    return file_paths
+
+# Divide by a by b and replace undefined values by `fill`.
+def divAB( a, b, fill=np.nan ):
+    """ a / b, divide by 0 -> `fill`
+        div0( [-1, 0, 1], 0, fill=np.nan) -> [nan nan nan]
+        div0( 1, 0, fill=np.inf ) -> inf
+    """
+    with np.errstate(divide='ignore', invalid='ignore'):
+        c = np.true_divide( a, b )
+    if np.isscalar( c ):
+        return c if np.isfinite( c ) else fill
+    else:
+        c[ ~ np.isfinite( c )] = fill
+        return c
+
 def printRandom3DSample(Arr, numElts=(5, 2, 3)):
     # A is a 3d-array
     np.random.seed(30)

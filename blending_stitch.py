@@ -1,8 +1,11 @@
+from typing import List
+
 import cv2 as cv
 import numpy as np
 
-from poisson import convertDouble2Uint8, poissonSolver
 from img_utils import resizeImg
+from poisson import convertDouble2Uint8, poissonSolver
+from utils import readFiles, divAB
 
 def computeGrad(img):
     # Compute gradient of the two images.
@@ -13,10 +16,96 @@ def computeGrad(img):
     
     return out_x, out_y
 
+def computeGuidanceField(grads, masks):
+    # Compute the guidance field.
+    guide_x = grads[0][0] * masks[0]
+    guide_y = grads[0][1] * masks[0]
+    for i in range(1, len(grads)):
+        gradc_x = grads[i][0] * masks[i]
+        gradc_y = grads[i][1] * masks[i]
+        guide_x = np.where(np.abs(guide_x) >= np.abs(gradc_x), guide_x, gradc_x)
+        guide_y = np.where(np.abs(guide_y) >= np.abs(gradc_y), guide_y, gradc_y)
+
+        # gradc_x = grads[i][0]
+        # gradc_y = grads[i][1]
+        # guide_x = np.where(np.abs(guide_x) <= np.abs(gradc_x), gradc_x, guide_x) * masks[i] + guide_x * (1 - masks[i])
+        # guide_y = np.where(np.abs(guide_y) <= np.abs(gradc_y), gradc_y, guide_y) * masks[i] + guide_y * (1 - masks[i])
+
+    print("Guide X: ", guide_x.shape)
+    return guide_x, guide_y
+
+def computeGuidanceFieldAvg(grads, masks):
+    # Compute the guidance field.
+    guide_x = grads[0][0] * masks[0]
+    guide_y = grads[0][1] * masks[0]
+    mask_sum = masks[0]
+    for i in range(1, len(grads)):
+        guide_x += grads[i][0] * masks[i]
+        guide_y += grads[i][1] * masks[i]
+        mask_sum += masks[i]
+
+    print("Guide X: ", guide_x.shape)
+    return divAB(guide_x, mask_sum, fill=0), divAB(guide_y, mask_sum, fill=0)
+
+
+def main_merge(img_paths: List[str], mask_paths: List[str], out_path, scf=0.5) -> None:    
+    # Read images and masks.
+    imgs = [resizeImg(cv.imread(img_path), scf) for img_path in img_paths]  
+    masks = [resizeImg(cv.imread(mask_path)//255, scf) for mask_path in mask_paths]
+    # masks = [~(resizeImg(cv.imread(mask_path)//255, scf) == 0) for mask_path in mask_paths]
+
+    # Compute the sum of the masks.
+    # Taking a matrix of size 5 as the kernel
+    kernel = np.ones((15, 15), np.uint8)
+    T = np.zeros_like(imgs[0])
+    d_masks = []
+    for i, (img, mask) in enumerate(zip(imgs, masks)):
+        mask = mask # cv.dilate(mask, kernel, iterations=1)
+        d_masks.append(mask)
+        T += img * mask
+        # cv.imshow(f"Mask + Img : {i}", img * mask)
+        # cv.waitKey(0)
+    cv.imshow("T", T)
+    cv.waitKey(0)
+
+    # Compute gradient of the images.
+    grads = [(computeGrad(img)) for img in imgs]
+
+    # Compute the guidance field.
+    guide_x, guide_y = computeGuidanceField(grads, d_masks)
+    # guide_x, guide_y = computeGuidanceFieldAvg(grads, d_masks)
+    cv.imshow("Guide X", resizeImg(guide_x, 0.7))
+    cv.imshow("Guide Y", resizeImg(guide_y, 0.7))
+    cv.waitKey(0)
+
+    # Compute the Poisson equation.
+    img_out = poissonSolver(guide_x, guide_y)
+    
+    # Convert the double image to uint8.
+    img_out = convertDouble2Uint8(img_out)
+    
+    # Save the result.
+    cv.imwrite(out_path, img_out)
+    cv.imshow("Result", img_out)
+    cv.waitKey(0)
+
+
 if __name__=="__main__":
 
+    # m_path = "/home/UFAD/enghonda/projects/poison-blending-stitching/data/Labs2"
+    m_path = "/home/UFAD/enghonda/projects/poison-blending-stitching/data/Airplanes2"
+    # m_path = "/home/UFAD/enghonda/projects/poison-blending-stitching/data/NSH"
+    img_paths = readFiles(m_path, "tks")
+    mask_paths = readFiles(m_path, "mask")
+
+    main_merge(img_paths, mask_paths, "out.png")
+    exit(0)
+
+    # Create the output folder.
+    # os.makedirs(m_path, exist_ok=True)
+
     # setting the id of the dataset to process
-    idx = 1
+    idx = 0
     m_param = [
         {
         'label': 'Labs',
@@ -36,9 +125,9 @@ if __name__=="__main__":
     num_frames = m_param[idx]['num_frames']
     scf = m_param[idx]['scale_factor']
     
-    TkImgs = []
-    # RkImgs = []
-    PkImgs = []
+    TkImgs = [] # list of warped images
+    # RkImgs = [] # list of reference images
+    PkImgs = [] # list of projected images masked by the seam mask
     # Grads = []
     Grads_crop = []
     
@@ -65,11 +154,18 @@ if __name__=="__main__":
         PkImgs.append(pkImg)
         
         # Crop gradient
-        Omegas  = ~(PkImgs[i] == 0);
+        Omegas  = ~(PkImgs[i] == 0)
         grad_x_c = grad_x * Omegas
         grad_y_c = grad_y * Omegas
         Grads_crop.append((grad_x_c, grad_y_c))
         print("Iteration: {} done...".format(i))
+
+        # Save Omegas
+        cv.imwrite('{folder}/Mask_{idx}.png'.format(folder=m_path, idx=i), Omegas*255)
+
+        # Save TkImg
+        cv.imwrite('{folder}/Tks_{idx}.png'.format(folder=m_path, idx=i), TkImgs[i])
+        
         # Clear memory
         del Omegas, grad_x_c, grad_y_c, grad_x, grad_y, tkImg, pkImg
     
